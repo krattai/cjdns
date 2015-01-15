@@ -341,6 +341,19 @@ static inline int handleQuery(struct DHTMessage* message,
         nodeList =
             NodeStore_getPeers(targetPath, RouterModule_K, message->allocator, module->nodeStore);
 
+    } else if (String_equals(queryType, CJDHTConstants_QUERY_NH)) {
+        // get the target
+        String* target = Dict_getString(query->asDict, CJDHTConstants_TARGET);
+        if (target == NULL || target->len != Address_SEARCH_TARGET_SIZE) {
+            return 0;
+        }
+        struct Node_Two* nn = NodeStore_getBest(module->nodeStore, target->bytes);
+        nodeList = Allocator_calloc(message->allocator, sizeof(struct NodeList), 1);
+        if (nn) {
+            nodeList->size = 1;
+            nodeList->nodes = Allocator_calloc(message->allocator, sizeof(char*), 1);
+            nodeList->nodes[0] = nn;
+        }
     }
 
     return (nodeList) ? sendNodes(nodeList, message, module, version) : 0;
@@ -603,6 +616,22 @@ struct RouterModule_Promise* RouterModule_pingNode(struct Address* addr,
     return promise;
 }
 
+struct RouterModule_Promise* RouterModule_nextHop(struct Address* whoToAsk,
+                                                  uint8_t target[16],
+                                                  uint32_t timeoutMilliseconds,
+                                                  struct RouterModule* module,
+                                                  struct Allocator* alloc)
+{
+    struct RouterModule_Promise* promise =
+        RouterModule_newMessage(whoToAsk, timeoutMilliseconds, module, alloc);
+    Dict* d = Dict_new(promise->alloc);
+    Dict_putString(d, CJDHTConstants_QUERY, CJDHTConstants_QUERY_NH, promise->alloc);
+    String* targetStr = String_newBinary(target, 16, promise->alloc);
+    Dict_putString(d, CJDHTConstants_TARGET, targetStr, promise->alloc);
+    RouterModule_sendMessage(promise, d);
+    return promise;
+}
+
 struct RouterModule_Promise* RouterModule_findNode(struct Address* whoToAsk,
                                                    uint8_t target[16],
                                                    uint32_t timeoutMilliseconds,
@@ -638,15 +667,6 @@ struct RouterModule_Promise* RouterModule_getPeers(struct Address* addr,
     return promise;
 }
 
-struct Node_Two* RouterModule_lookup(uint8_t targetAddr[Address_SEARCH_TARGET_SIZE],
-                                 struct RouterModule* module)
-{
-    struct Address addr = { .path = 0 };
-    Bits_memcpyConst(addr.ip6.bytes, targetAddr, Address_SEARCH_TARGET_SIZE);
-
-    return NodeStore_getBest(&addr, module->nodeStore);
-}
-
 struct Node_Two* RouterModule_nodeForPath(uint64_t path, struct RouterModule* module)
 {
     struct Node_Link* link = NodeStore_linkForPath(module->nodeStore, path);
@@ -654,10 +674,10 @@ struct Node_Two* RouterModule_nodeForPath(uint64_t path, struct RouterModule* mo
     return link->child;
 }
 
-void RouterModule_brokenPath(const uint64_t path, struct RouterModule* module)
+/*void RouterModule_brokenPath(const uint64_t path, struct RouterModule* module)
 {
     NodeStore_brokenPath(path, module->nodeStore);
-}
+}*/
 
 uint32_t RouterModule_globalMeanResponseTime(struct RouterModule* module)
 {

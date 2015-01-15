@@ -102,14 +102,20 @@ struct RouterModule_Promise* RouterModule_newMessage(struct Address* addr,
 
 void RouterModule_sendMessage(struct RouterModule_Promise* promise, Dict* request);
 
-void RouterModule_brokenPath(const uint64_t path, struct RouterModule* module);
+//void RouterModule_brokenPath(const uint64_t path, struct RouterModule* module);
 
 struct Node_Two* RouterModule_nodeForPath(uint64_t path, struct RouterModule* module);
 
-struct Node_Two* RouterModule_lookup(uint8_t targetAddr[Address_SEARCH_TARGET_SIZE],
-                                     struct RouterModule* module);
+//struct Node_Two* RouterModule_lookup(uint8_t targetAddr[Address_SEARCH_TARGET_SIZE],
+  //                                   struct RouterModule* module);
 
 uint32_t RouterModule_globalMeanResponseTime(struct RouterModule* module);
+
+struct RouterModule_Promise* RouterModule_nextHop(struct Address* whoToAsk,
+                                                  uint8_t target[16],
+                                                  uint32_t timeoutMilliseconds,
+                                                  struct RouterModule* module,
+                                                  struct Allocator* alloc);
 
 struct RouterModule_Promise* RouterModule_getPeers(struct Address* addr,
                                                    uint64_t nearbyLabel,

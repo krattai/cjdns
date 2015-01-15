@@ -18,6 +18,8 @@
 #include "benc/Int.h"
 #include "dht/dhtcore/Node.h"
 #include "dht/dhtcore/RouterModule.h"
+#include "dht/dhtcore/RouterModule_admin.h"
+#include "dht/dhtcore/Router.h"
 #include "dht/dhtcore/ReplySerializer.h"
 #include "dht/Address.h"
 #include "dht/CJDHTConstants.h"
@@ -27,7 +29,8 @@
 struct Context {
     struct Admin* admin;
     struct Allocator* allocator;
-    struct RouterModule* router;
+    struct RouterModule* module;
+    struct Router* router;
     Identity
 };
 
@@ -44,7 +47,7 @@ static void lookup(Dict* args, void* vcontext, String* txid, struct Allocator* r
     } else if (AddrTools_parseIp(addr, (uint8_t*) addrStr->bytes)) {
         err = "failed to parse address";
     } else {
-        struct Node_Two* n = RouterModule_lookup(addr, ctx->router);
+        struct Node_Two* n = Router_lookup(ctx->router, addr);
         if (!n) {
             result = "not found";
         } else if (Bits_memcmp(addr, n->address.ip6.bytes, 16)) {
@@ -121,7 +124,7 @@ static void genericResponse(struct RouterModule_Promise* promise,
             ReplySerializer_parse(from, responseDict, NULL, promise->alloc);
 
         List* nodes = List_new(promise->alloc);
-        for (int i = 0; i < addrs->length; i++) {
+        for (int i = 0; addrs && i < addrs->length; i++) {
             String* addr = Address_toString(&addrs->elems[i], promise->alloc);
             List_addString(nodes, addr, promise->alloc);
         }
@@ -159,15 +162,15 @@ static struct Address* getNode(String* pathStr,
     struct Address addr = {.path=0};
 
     if (pathStr->len == 19 && !AddrTools_parsePath(&addr.path, pathStr->bytes)) {
-        struct Node_Two* n = RouterModule_nodeForPath(addr.path, ctx->router);
-        if (!n) {
+        struct Node_Link* nl = Router_linkForPath(ctx->router, addr.path);
+        if (!nl) {
             *errOut = "not_found";
             return NULL;
         } else {
-            Bits_memcpyConst(&addr, &n->address, sizeof(struct Address));
+            Bits_memcpyConst(&addr, &nl->child->address, sizeof(struct Address));
         }
     } else if (pathStr->len == 39 && !AddrTools_parseIp(addr.ip6.bytes, pathStr->bytes)) {
-        struct Node_Two* n = RouterModule_lookup(addr.ip6.bytes, ctx->router);
+        struct Node_Two* n = Router_lookup(ctx->router, addr.ip6.bytes);
         if (!n || Bits_memcmp(addr.ip6.bytes, n->address.ip6.bytes, 16)) {
             *errOut = "not_found";
             return NULL;
@@ -201,7 +204,7 @@ static void pingNode(Dict* args, void* vctx, String* txid, struct Allocator* req
     }
 
     struct RouterModule_Promise* rp =
-        RouterModule_pingNode(addr, timeout, ctx->router, ctx->allocator);
+        RouterModule_pingNode(addr, timeout, ctx->module, ctx->allocator);
     struct Ping* ping = Allocator_calloc(rp->alloc, sizeof(struct Ping), 1);
     Identity_set(ping);
     ping->txid = String_clone(txid, rp->alloc);
@@ -236,7 +239,7 @@ static void getPeers(Dict* args, void* vctx, String* txid, struct Allocator* req
     }
 
     struct RouterModule_Promise* rp =
-        RouterModule_getPeers(addr, nearbyLabel, timeout, ctx->router, ctx->allocator);
+        RouterModule_getPeers(addr, nearbyLabel, timeout, ctx->module, ctx->allocator);
 
     struct Ping* ping = Allocator_calloc(rp->alloc, sizeof(struct Ping), 1);
     Identity_set(ping);
@@ -272,7 +275,39 @@ static void findNode(Dict* args, void* vctx, String* txid, struct Allocator* req
     }
 
     struct RouterModule_Promise* rp =
-        RouterModule_findNode(nodeToQuery, target, timeout, ctx->router, ctx->allocator);
+        RouterModule_findNode(nodeToQuery, target, timeout, ctx->module, ctx->allocator);
+
+    struct Ping* ping = Allocator_calloc(rp->alloc, sizeof(struct Ping), 1);
+    Identity_set(ping);
+    ping->txid = String_clone(txid, rp->alloc);
+    ping->rp = rp;
+    ping->ctx = ctx;
+    rp->userData = ping;
+    rp->callback = findNodeResponse;
+}
+
+static void nextHop(Dict* args, void* vctx, String* txid, struct Allocator* requestAlloc)
+{
+    struct Context* ctx = Identity_check((struct Context*) vctx);
+    String* nodeToQueryStr = Dict_getString(args, String_CONST("nodeToQuery"));
+    String* targetStr = Dict_getString(args, String_CONST("target"));
+    int64_t* timeoutPtr = Dict_getInt(args, String_CONST("timeout"));
+    uint32_t timeout = (timeoutPtr && *timeoutPtr > 0) ? *timeoutPtr : 0;
+
+    char* err = NULL;
+    struct Address* nodeToQuery = getNode(nodeToQueryStr, ctx, &err, requestAlloc);
+    uint8_t target[16];
+
+    if (!err && AddrTools_parseIp(target, targetStr->bytes)) { err = "parse_target"; }
+
+    if (err) {
+        Dict errDict = Dict_CONST(String_CONST("error"), String_OBJ(String_CONST(err)), NULL);
+        Admin_sendMessage(&errDict, txid, ctx->admin);
+        return;
+    }
+
+    struct RouterModule_Promise* rp =
+        RouterModule_nextHop(nodeToQuery, target, timeout, ctx->module, ctx->allocator);
 
     struct Ping* ping = Allocator_calloc(rp->alloc, sizeof(struct Ping), 1);
     Identity_set(ping);
@@ -284,6 +319,7 @@ static void findNode(Dict* args, void* vctx, String* txid, struct Allocator* req
 }
 
 void RouterModule_admin_register(struct RouterModule* module,
+                                 struct Router* router,
                                  struct Admin* admin,
                                  struct Allocator* alloc)
 {
@@ -292,9 +328,17 @@ void RouterModule_admin_register(struct RouterModule* module,
     struct Context* ctx = Allocator_clone(alloc, (&(struct Context) {
         .admin = admin,
         .allocator = alloc,
-        .router = module
+        .module = module,
+        .router = router
     }));
     Identity_set(ctx);
+
+    Admin_registerFunction("RouterModule_nextHop", nextHop, ctx, true,
+        ((struct Admin_FunctionArg[]) {
+            { .name = "nodeToQuery", .required = 1, .type = "String" },
+            { .name = "target", .required = 1, .type = "String" },
+            { .name = "timeout", .required = 0, .type = "Int" }
+        }), admin);
 
     Admin_registerFunction("RouterModule_lookup", lookup, ctx, true,
         ((struct Admin_FunctionArg[]) {

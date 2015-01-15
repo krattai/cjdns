@@ -80,7 +80,7 @@ static int genAddress(uint8_t addressOut[40],
         if (AddressCalc_addressForPublicKey(address.ip6.bytes, address.key)) {
             Hex_encode(privateKeyHexOut, 65, privateKey, 32);
             Base32_encode(publicKeyBase32Out, 53, address.key, 32);
-            Address_printIp(addressOut, &address);
+            Address_printShortIp(addressOut, &address);
             return 0;
         }
     }
@@ -248,19 +248,23 @@ static int genconf(struct Random* rand)
            "            // ip4 and/or ip6 addresses listed.\n"
            "            \"allowedConnections\":\n"
            "            [\n"
+           "                // Give the client an address on 192.168.1.0/24, and an address\n"
+           "                // it thinks has all of IPv6 behind it.\n"
            "                // {\n"
            "                //     \"publicKey\": "
            "\"f64hfl7c4uxt6krmhPutTheRealAddressOfANodeHere7kfm5m0.k\",\n"
            "                //     \"ip4Address\": \"192.168.1.24\",\n"
-           "                //     \"ip6Address\": \"2001:123:ab::10\"\n"
+           "                //     \"ip4Prefix\": 24,\n"
+           "                //     \"ip6Address\": \"2001:123:ab::10\",\n"
+           "                //     \"ip6Prefix\": 0\n"
            "                // },\n"
            "\n"
            "                // It's ok to only specify one address.\n"
            "                // {\n"
            "                //     \"publicKey\": "
            "\"ydq8csdk8p8ThisIsJustAnExampleAddresstxuyqdf27hvn2z0.k\",\n"
-           "                //     \"ip4Address\": \"192.168.1.24\",\n"
-           "                //     \"ip6Address\": \"2001:123:ab::10\"\n"
+           "                //     \"ip4Address\": \"192.168.1.25\",\n"
+           "                //     \"ip4Prefix\": 24\n"
            "                // }\n"
            "            ],\n"
            "\n"
@@ -282,16 +286,12 @@ static int genconf(struct Random* rand)
            "    \"security\":\n"
            "    [\n"
            "        // Change the user id to this user after starting up and getting resources.\n"
-           "        {\n"
-           "            \"setuser\": \"nobody\",\n"
-           "\n"
-           "            // Exempt the Angel process from setting userId, the Angel is a small\n"
-           "            // isolated piece of code which exists outside of the core's strict\n"
-           "            // sandbox but does not handle network traffic.\n"
-           "            // This must be enabled for IpTunnel to automatically set IP addresses\n"
-           "            // for the TUN device.\n"
-           "            \"exemptAngel\": 1\n"
-           "        }\n"
+           "        // exemptAngel exempts the Angel process from setting userId, the Angel is\n"
+           "        // a small isolated piece of code which exists outside of the core's strict\n"
+           "        // sandbox but does not handle network traffic.\n"
+           "        // This must be enabled for IpTunnel to automatically set IP addresses\n"
+           "        // for the TUN device.\n"
+           "        { \"setuser\": \"nobody\", \"exemptAngel\": 1 }\n"
            "     ],\n"
            "\n"
            "    // Logging\n"

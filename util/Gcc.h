@@ -28,6 +28,9 @@
 #define Gcc_PURE \
     __attribute__ ((__pure__))
 
+#define Gcc_PACKED \
+    __attribute__ ((packed))
+
 
 #else
 
@@ -35,10 +38,12 @@
 #define Gcc_NORETURN
 #define Gcc_NONNULL(num)
 #define Gcc_PURE
+#define Gcc_PACKED
 
 #endif
 
 #define Gcc_SHORT_FILE <?js return '"'+__FILE__.substring(__FILE__.lastIndexOf('/')+1)+'"'; ?>
+#define Gcc_FILE Gcc_SHORT_FILE
 #define Gcc_LINE __LINE__
 
 Gcc_PRINTF(1,2)

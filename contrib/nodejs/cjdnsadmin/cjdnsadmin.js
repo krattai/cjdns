@@ -50,16 +50,20 @@ var callFunc = function (sock, addr, port, pass, func, args, callback) {
         if (typeof(cookie) !== 'string') { throw new Error("invalid cookie in [" + ret + "]"); }
         var json = {
             txid: String(sock.counter++),
-            q: 'auth',
-            aq: func,
+            q: func,
             args: {}
         };
         Object.keys(args).forEach(function (arg) {
             json.args[arg] = args[arg];
         });
-        json.cookie = cookie;
-        json.hash = Crypto.createHash('sha256').update(pass + cookie).digest('hex');
-        json.hash = Crypto.createHash('sha256').update(Bencode.encode(json)).digest('hex');
+        if (pass) {
+            json.aq = json.q;
+            json.q = 'auth';
+
+            json.cookie = cookie;
+            json.hash = Crypto.createHash('sha256').update(pass + cookie).digest('hex');
+            json.hash = Crypto.createHash('sha256').update(Bencode.encode(json)).digest('hex');
+        }
         sendmsg(sock, addr, port, new Buffer(Bencode.encode(json)), json.txid, callback);
     });
 };
@@ -175,7 +179,12 @@ var connect = module.exports.connect = function (addr, port, pass, callback) {
             throw new Error("Response [" + msg + "] with no txid");
         }
         var handler = sock.handlers[response.txid];
-        if (!handler) { return; }
+        if (!handler) {
+            if (sock.defaultHandler) {
+                sock.defaultHandler(undefined, response);
+            }
+            return;
+        }
         clearTimeout(handler.timeout);
         delete sock.handlers[response.txid];
         handler.callback(undefined, response);
@@ -189,6 +198,7 @@ var connect = module.exports.connect = function (addr, port, pass, callback) {
     }).nThen(function (waitFor) {
         getFunctions(sock, addr, port, pass, function (cjdns) {
             cjdns.disconnect = function () { sock.close() };
+            cjdns.setDefaultHandler = function (handler) { sock.defaultHandler = handler; };
             callback(cjdns);
         });
     });
@@ -204,4 +214,10 @@ var connectWithAdminInfo = module.exports.connectWithAdminInfo = function (callb
     }).nThen(function (waitFor) {
         connect(cjdnsAdmin.addr, cjdnsAdmin.port, cjdnsAdmin.password, callback);
     });
+};
+
+var connectAsAnon = module.exports.connectAsAnon = function (callback, addr, port) {
+    addr = addr || '127.0.0.1';
+    port = port || 11234;
+    connect(addr, port, null, callback);
 };

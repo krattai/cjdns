@@ -10,24 +10,7 @@ near-zero-configuration networking, and prevents many of the security and
 scalability issues that plague existing networks.
 
 [![Build Status](https://travis-ci.org/cjdelisle/cjdns.png?branch=master)](https://travis-ci.org/cjdelisle/cjdns)
-
-## **ALERT**
-
-Versions from prior to Dec 26 2013 have a serious security issue allowing an
-attacker inside of the network to impersonate somebody else. If you are using
-an old version, please update. If the new version does not build or work for you
-please use `stable-0.5` and report the issue on github or in IRC. Note that
-`stable-0.5` will receive only critical security patches and not be updated as
-the protocol changes so using it is not a long term solution.
-
-### **UBUNTU USERS**
-
-The PPA at `https://code.launchpad.net/~calebdelisle/cjdns-apt` is no-longer
-maintained, because of limitations in the launchpad system, it can neither be
-updated to `stable-0.5` nor to the master branch and
-THE LAST SUCCESSFUL BUILD WAS BEFORE THE SECURITY PATCH.
-Please switch to the [new standalone repository](https://github.com/Shnatsel/cjdns-ubuntu-pubkey)
-administered by Sergey Davidoff.
+[![tip for next commit](https://tip4commit.com/projects/941.svg)](https://tip4commit.com/github/cjdelisle/cjdns)
 
 
 ## With built-in security and auto-configuration, everybody can own part of the network
@@ -179,6 +162,10 @@ Advanced configuration:
 * [Setup a cjdns NAT gateway for your LAN](doc/nat-gateway.md)
 * [Install cjdns on OpenIndiana](doc/open-indiana.md)
 
+### License
+
+[Available here](LICENSE)
+
 Thank you for your time and interest,
 
 The cjdns developers.
@@ -226,7 +213,7 @@ If you use [Macports](https://www.macports.org/):
     sudo port install git-core nodejs
 
 Or if you use neither and would like to install the binaries from their websites:
-
+doc
 - Node.js: [http://nodejs.org/download/](http://nodejs.org/download/)
 - git: [http://git-scm.com/download](http://git-scm.com/download)
 
@@ -234,7 +221,7 @@ Or if you use neither and would like to install the binaries from their websites
 
 Sadly, OpenBSD is a bit experimental right now.
 
-    pkg_add git node gcc
+    pkg_add git node gcc gmake bash
 
 Select version gcc-4.8.1p2 or more recent.
 
@@ -461,9 +448,10 @@ stay on [IRC](#community) so that people can reach you.
 ## Admin interface
 
 When cjdnroute is up and running, the admin interface will be available at
-`localhost:11234` (this can be changed in the cjdroute.conf
+`udp://localhost:11234` (this can be changed in the cjdroute.conf
 configuration file). See [admin/README.md](admin/README.md) for more
-information about the admin interface.
+information about the admin interface. There are several tools in `contrib/`
+that can interact with it.
 
 You can access the admin API with:
 
@@ -477,7 +465,7 @@ You can access the admin API with:
 [Hyperboria]: http://hyperboria.net
 [Project Meshnet]: https://projectmeshnet.org
 [/r/darknetplan]: http://www.reddit.com/r/darknetplan
-[#cjdns on Twitter]: https://twitter.com/hashtag/hyperboria
+[#cjdns on Twitter]: https://twitter.com/hashtag/cjdns
 [Project Meshnet Map]: http://map.projectmeshnet.org
 [Buildbots]: https://buildbot.meshwith.me/cjdns/waterfall
 
@@ -489,4 +477,3 @@ You can access the admin API with:
 [Tor]: https://www.torproject.org
 [I2P]: http://www.i2p2.de
 [Freenet]: https://freenetproject.org
-

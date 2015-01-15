@@ -22,6 +22,7 @@
 #include "memory/Allocator.h"
 #include "switch/EncodingScheme.h"
 #include "util/Linker.h"
+#include "util/events/EventBase.h"
 Linker_require("dht/dhtcore/NodeStore.c")
 
 #include <stdint.h>
@@ -34,6 +35,7 @@ struct NodeStore
     struct Node_Two* selfNode;
 
     int peerCount;
+    int linkedNodes;
 
     int nodeCount;
     int nodeCapacity;
@@ -54,6 +56,7 @@ struct NodeStore
  */
 struct NodeStore* NodeStore_new(struct Address* myAddress,
                                 struct Allocator* allocator,
+                                struct EventBase* eventBase,
                                 struct Log* logger,
                                 struct RumorMill* renumberMill);
 
@@ -144,11 +147,11 @@ char* NodeStore_getRouteLabel_strerror(uint64_t returnVal);
  * (versions above it's own are considered the same as it's version). It breaks ties of the
  * above two by which node has non-zero reach and finally shortest label fragment wins.
  *
- * @param targetAddress the address used for comparing distance
  * @param store the NodeStore
+ * @param targetAddress the address used for comparing distance
  * @return the node w/ address closest to targetAddress or NULL if myAddress is closest
  */
-struct Node_Two* NodeStore_getBest(struct Address* targetAddress, struct NodeStore* store);
+struct Node_Two* NodeStore_getBest(struct NodeStore* nodeStore, uint8_t targetAddress[16]);
 
 /**
  * Get direct peers of this node.
@@ -191,8 +194,24 @@ void NodeStore_pathTimeout(struct NodeStore* nodeStore, uint64_t path);
  * @param path the label part in host order.
  * @param store the node store.
  */
-void NodeStore_brokenPath(uint64_t path, struct NodeStore* store);
+//void NodeStore_brokenPath(uint64_t path, struct NodeStore* store);
+
+void NodeStore_brokenLink(struct NodeStore* nodeStore, uint64_t path, uint64_t pathAtErrorPoint);
+
+void NodeStore_disconnectedPeer(struct NodeStore* nodeStore, uint64_t path);
 
 struct Node_Two* NodeStore_getNextNode(struct NodeStore* nodeStore, struct Node_Two* lastNode);
+
+uint64_t NodeStore_timeSinceLastPing(struct NodeStore* nodeStore, struct Node_Two* node);
+
+// Used for DHT maintenance.
+#define NodeStore_bucketSize 4
+#define NodeStore_bucketNumber 512
+struct Address NodeStore_addrForBucket(struct Address* source, uint16_t bucket);
+uint16_t NodeStore_bucketForAddr(struct Address* source, struct Address* dest);
+struct NodeList* NodeStore_getNodesForBucket(struct NodeStore* nodeStore,
+                                             struct Allocator* allocator,
+                                             uint16_t bucket,
+                                             const uint32_t count);
 
 #endif
